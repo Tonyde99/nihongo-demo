@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blogger 內嵌 Demo｜大家的日本語</title>
+  <!-- TailwindCSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Markdown-it CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it@14/dist/markdown-it.min.js"></script>
+</head>
+<body>
+  <h1 style="font-size:20px;font-weight:bold;margin-bottom:10px;">大家的日本語 Demo（Blogger iframe 測試版）</h1>
+  <p>這是簡化過的版本，適合放進 <code>Blogger</code> 文章，方法：先把這份程式存成 <code>.html</code> 檔，上傳到 GitHub Pages 或 Google Drive（可公開連結），再在 Blogger 文章中貼下面 iframe：</p>
+
+  <pre>&lt;iframe src="你的檔案網址" width="100%" height="600" style="border:0;"&gt;&lt;/iframe&gt;</pre>
+
+  <hr/>
+  <div id="app"></div>
+
+  <script>
+    // 載入範例 Markdown
+    const sample = `| 單字 | 假名 | 中文 | 例句（日文） | 例句（中文）\n|---|---|---|---|---|\n| 猫 | ねこ | 貓 | にわにねこがいます。 | 院子裡有貓。`;
+
+    // 轉換 Markdown → HTML
+    const mdIt = window.markdownit();
+    const html = mdIt.render(sample);
+
+    // 顯示
+    document.getElementById('app').innerHTML = html + `\n<button onclick="speak('にわにねこがいます。')">念例句</button>`;
+
+    // 簡單語音
+    function speak(txt){
+      const u = new SpeechSynthesisUtterance(txt);
+      u.lang = 'ja-JP';
+      window.speechSynthesis.speak(u);
+    }
+  </script>
+</body>
+</html>
