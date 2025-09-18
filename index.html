@@ -3,38 +3,204 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Blogger 內嵌 Demo｜大家的日本語</title>
+  <title>大家的日本語｜Markdown → 單字表｜發音｜小測驗</title>
   <!-- TailwindCSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Markdown-it CDN -->
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@14/dist/markdown-it.min.js"></script>
+  <style>
+    ::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px}
+  </style>
 </head>
-<body>
-  <h1 style="font-size:20px;font-weight:bold;margin-bottom:10px;">大家的日本語 Demo（Blogger iframe 測試版）</h1>
-  <p>這是簡化過的版本，適合放進 <code>Blogger</code> 文章，方法：先把這份程式存成 <code>.html</code> 檔，上傳到 GitHub Pages 或 Google Drive（可公開連結），再在 Blogger 文章中貼下面 iframe：</p>
-
-  <pre>&lt;iframe src="你的檔案網址" width="100%" height="600" style="border:0;"&gt;&lt;/iframe&gt;</pre>
-
-  <hr/>
-  <div id="app"></div>
-
-  <script>
-    // 載入範例 Markdown
-    const sample = `| 單字 | 假名 | 中文 | 例句（日文） | 例句（中文）\n|---|---|---|---|---|\n| 猫 | ねこ | 貓 | にわにねこがいます。 | 院子裡有貓。`;
-
-    // 轉換 Markdown → HTML
-    const mdIt = window.markdownit();
-    const html = mdIt.render(sample);
-
-    // 顯示
-    document.getElementById('app').innerHTML = html + `\n<button onclick="speak('にわにねこがいます。')">念例句</button>`;
-
-    // 簡單語音
-    function speak(txt){
-      const u = new SpeechSynthesisUtterance(txt);
-      u.lang = 'ja-JP';
-      window.speechSynthesis.speak(u);
+<body class="bg-slate-50 text-slate-800">
+  <div class="max-w-6xl mx-auto p-4 md:p-8">
+    <header class="flex items-center justify-between gap-4 mb-6">
+      <h1 class="text-2xl md:text-3xl font-bold">大家的日本語｜Markdown→網頁 + 發音 + 小測驗</h1>
+      <div class="flex items-center gap-2">
+        <button id="btnSample" class="px-3 py-2 rounded-xl bg-slate-900 text-white text-sm shadow hover:opacity-90">載入示例</button>
+        <button id="btnExportJSON" class="px-3 py-2 rounded-xl bg-white text-slate-900 border border-slate-300 text-sm shadow hover:bg-slate-100">匯出 JSON</button>
+      </div>
+    </header>
+    <nav class="mb-4">
+      <ul class="flex gap-2">
+        <li><button data-tab="tab-md" class="tab-btn px-4 py-2 rounded-2xl bg-white border border-slate-300 shadow text-sm font-medium">1) 貼 Markdown</button></li>
+        <li><button data-tab="tab-preview" class="tab-btn px-4 py-2 rounded-2xl bg-white border border-slate-300 shadow text-sm font-medium">2) 預覽 & 發音</button></li>
+        <li><button data-tab="tab-quiz" class="tab-btn px-4 py-2 rounded-2xl bg-white border border-slate-300 shadow text-sm font-medium">3) 小測驗</button></li>
+      </ul>
+    </nav>
+    <section id="tab-md" class="tab-panel bg-white rounded-3xl p-4 md:p-6 shadow mb-6">
+      <h2 class="text-xl font-semibold mb-2">將每課的單字表用 <span class="font-mono">Markdown</span> 表格貼在這裡</h2>
+      <textarea id="mdInput" class="w-full h-64 md:h-72 font-mono text-sm p-4 border border-slate-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-slate-400"></textarea>
+      <div class="mt-4 flex items-center gap-2">
+        <button id="btnParse" class="px-4 py-2 rounded-2xl bg-slate-900 text-white shadow hover:opacity-90">轉換成資料</button>
+        <span id="parseHint" class="text-sm text-slate-500"></span>
+      </div>
+    </section>
+    <section id="tab-preview" class="tab-panel bg-white rounded-3xl p-4 md:p-6 shadow mb-6 hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold">預覽（可點按發音）</h2>
+        <div class="flex items-center gap-2 text-sm">
+          <label class="text-slate-600">語速</label>
+          <input id="rate" type="range" min="0.6" max="1.4" step="0.1" value="1" class="w-32"/>
+          <label class="text-slate-600">音調</label>
+          <input id="pitch" type="range" min="0.8" max="1.2" step="0.1" value="1" class="w-32"/>
+        </div>
+      </div>
+      <div id="cards" class="grid md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+    </section>
+    <section id="tab-quiz" class="tab-panel bg-white rounded-3xl p-4 md:p-6 shadow mb-6 hidden">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold">小測驗（中文 → 請輸入假名）</h2>
+        <div class="text-sm text-slate-600">共 <span id="quizTotal">0</span> 題素材</div>
+      </div>
+      <div id="quizBox" class="rounded-2xl border border-slate-200 p-4">
+        <div class="mb-2 text-slate-500 text-sm">題目：</div>
+        <div id="quizQ" class="text-2xl font-bold mb-3">—</div>
+        <div class="flex items-center gap-2 mb-2">
+          <input id="quizAns" class="flex-1 px-3 py-2 rounded-xl border border-slate-300" placeholder="輸入假名（例如：ねこ）"/>
+          <button id="quizSubmit" class="px-4 py-2 rounded-xl bg-slate-900 text-white">送出</button>
+        </div>
+        <div id="quizResult" class="min-h-6 text-sm"></div>
+        <div class="mt-3 flex items-center gap-2">
+          <button id="quizSpeak" class="px-3 py-1.5 rounded-xl border border-slate-300">念出例句</button>
+          <button id="quizNext" class="px-3 py-1.5 rounded-xl border border-slate-300">下一題</button>
+        </div>
+      </div>
+    </section>
+    <footer class="text-center text-xs text-slate-500">Made for rapid learning • Markdown → Data → UI • Web Speech API for ja-JP</footer>
+  </div>
+<script>
+  let DATA = [];
+  let VOICES = [];
+  let VOICE_JA = null;
+  const $ = (s, p=document)=>p.querySelector(s);
+  const $$ = (s, p=document)=>Array.from(p.querySelectorAll(s));
+  $$('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const tabId = btn.getAttribute('data-tab');
+      $$('.tab-panel').forEach(p=>p.classList.add('hidden'));
+      $('#'+tabId).classList.remove('hidden');
+    });
+  });
+  function parseMarkdownTable(md){
+    const mdIt = window.markdownit({html: false, linkify: true});
+    const html = mdIt.render(md.trim());
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    const table = div.querySelector('table');
+    const rows = table ? Array.from(table.querySelectorAll('tr')) : [];
+    const out = [];
+    for(let i=0;i<rows.length;i++){
+      const cols = Array.from(rows[i].querySelectorAll('td,th')).map(td=>td.textContent.trim());
+      if(cols.length < 5) continue;
+      if(i===0) continue;
+      const [word, kana, zh, senJP, senZH] = cols;
+      if(!word || !kana) continue;
+      out.push({word, kana, zh, senJP, senZH});
     }
-  </script>
+    return out;
+  }
+  function renderCards(){
+    const wrap = $('#cards');
+    wrap.innerHTML = '';
+    DATA.forEach((it, idx)=>{
+      const card = document.createElement('div');
+      card.className = 'rounded-2xl border border-slate-200 p-4 shadow-sm bg-white';
+      card.innerHTML = `
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <div class="text-2xl font-bold">${escapeHTML(it.word)} <span class="text-slate-500 text-lg">${escapeHTML(it.kana)}</span></div>
+            <div class="text-slate-600">${escapeHTML(it.zh)}</div>
+          </div>
+          <div class="flex gap-2">
+            <button class="speak-word px-3 py-1.5 rounded-xl bg-slate-900 text-white text-sm" data-idx="${idx}">念單字</button>
+            <button class="speak-sen px-3 py-1.5 rounded-xl bg-white border border-slate-300 text-sm" data-idx="${idx}">念例句</button>
+          </div>
+        </div>
+        <div class="mt-3 p-3 bg-slate-50 rounded-xl">
+          <div class="font-medium">例句（日）：</div>
+          <div class="text-slate-800">${escapeHTML(it.senJP||'—')}</div>
+          <div class="mt-1 text-slate-500 text-sm">例句（中）：${escapeHTML(it.senZH||'—')}</div>
+        </div>`;
+      wrap.appendChild(card);
+    });
+    $$('.speak-word').forEach(btn=>btn.addEventListener('click',()=>{
+      const i = +btn.getAttribute('data-idx');
+      speak(DATA[i].kana || DATA[i].word, 'ja-JP');
+    }));
+    $$('.speak-sen').forEach(btn=>btn.addEventListener('click',()=>{
+      const i = +btn.getAttribute('data-idx');
+      if(DATA[i].senJP) speak(DATA[i].senJP, 'ja-JP');
+    }));
+    $('#quizTotal').textContent = DATA.length;
+  }
+  let quizIndex = -1;
+  function nextQuiz(){
+    if(DATA.length===0){ $('#quizQ').textContent='請先於「貼 Markdown」分頁匯入資料'; return; }
+    quizIndex = Math.floor(Math.random()*DATA.length);
+    $('#quizQ').textContent = `中文：${DATA[quizIndex].zh}`;
+    $('#quizAns').value = '';
+    $('#quizResult').innerHTML = '';
+  }
+  $('#quizSubmit').addEventListener('click',()=>{
+    if(quizIndex<0) return;
+    const ans = ($('#quizAns').value||'').trim();
+    const ok  = normalizeKana(ans) === normalizeKana(DATA[quizIndex].kana);
+    $('#quizResult').innerHTML = ok ? `<span class="text-green-600">✅ 正確！${escapeHTML(DATA[quizIndex].word)}（${escapeHTML(DATA[quizIndex].kana)}）</span>` : `<span class="text-red-600">❌ 再想想～ 正解：${escapeHTML(DATA[quizIndex].kana)}</span>`;
+  });
+  $('#quizNext').addEventListener('click', nextQuiz);
+  $('#quizSpeak').addEventListener('click',()=>{
+    if(quizIndex<0) return;
+    if(DATA[quizIndex].senJP) speak(DATA[quizIndex].senJP, 'ja-JP');
+  });
+  function normalizeKana(s){
+    return (s||'').replace(/\s+/g,'').replace(/[ァ-ン]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60));
+  }
+  function loadVoices(){
+    VOICES = window.speechSynthesis.getVoices();
+    VOICE_JA = VOICES.find(v => v.lang?.toLowerCase().includes('ja') || /japanese/i.test(v.name));
+  }
+  window.speechSynthesis.onvoiceschanged = loadVoices;
+  loadVoices();
+  function speak(text, lang='ja-JP'){
+    if(!('speechSynthesis' in window)){
+      alert('此瀏覽器不支援語音朗讀');
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang;
+    u.rate = parseFloat($('#rate').value||'1');
+    u.pitch = parseFloat($('#pitch').value||'1');
+    if(VOICE_JA) u.voice = VOICE_JA;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
+  function escapeHTML(s){
+    return (s==null?'':String(s)).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+  }
+  $('#btnParse').addEventListener('click',()=>{
+    try{
+      const md = $('#mdInput').value.trim();
+      const rows = parseMarkdownTable(md);
+      if(rows.length===0){ $('#parseHint').textContent = '找不到表格資料，請檢查欄位或分隔線。'; return; }
+      DATA = rows;
+      $('#parseHint').textContent = `已匯入 ${DATA.length} 筆。切換到「預覽」或「小測驗」分頁看看！`;
+      renderCards();
+    }catch(e){ console.error(e); $('#parseHint').textContent = '解析失敗：請確認 Markdown 表格格式。'; }
+  });
+  $('#btnSample').addEventListener('click',()=>{
+    const sample = `| 單字 | 假名 | 中文 | 例句（日文） | 例句（中文）\n|---|---|---|---|---|\n| 猫 | ねこ | 貓 | にわにねこがいます。 | 院子裡有貓。\n| 音楽 | おんがく | 音樂 | まいにちおんがくをききます。 | 我每天聽音樂。\n| 歌う | うたう | 唱歌 | きょうはカラオケでうたをうたいます。 | 今天要在卡拉OK唱歌。`;
+    $('#mdInput').value = sample;
+  });
+  $('#btnExportJSON').addEventListener('click',()=>{
+    const blob = new Blob([JSON.stringify(DATA, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'nihongo-lesson.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+  document.querySelector('[data-tab="tab-md"]').click();
+</script>
 </body>
 </html>
